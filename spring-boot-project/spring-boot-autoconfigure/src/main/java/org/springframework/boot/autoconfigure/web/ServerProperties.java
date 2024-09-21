@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import org.springframework.boot.convert.DurationUnit;
 import org.springframework.boot.web.server.Compression;
 import org.springframework.boot.web.server.Cookie;
 import org.springframework.boot.web.server.Http2;
+import org.springframework.boot.web.server.MimeMappings;
 import org.springframework.boot.web.server.Shutdown;
 import org.springframework.boot.web.server.Ssl;
 import org.springframework.boot.web.servlet.server.Encoding;
@@ -71,6 +72,7 @@ import org.springframework.util.unit.DataSize;
  * @author Parviz Rozikov
  * @author Florian Storz
  * @author Michael Weidmann
+ * @author Lasse Wulff
  * @since 1.0.0
  */
 @ConfigurationProperties(prefix = "server", ignoreUnknownFields = true)
@@ -107,13 +109,18 @@ public class ServerProperties {
 	/**
 	 * Type of shutdown that the server will support.
 	 */
-	private Shutdown shutdown = Shutdown.IMMEDIATE;
+	private Shutdown shutdown = Shutdown.GRACEFUL;
 
 	@NestedConfigurationProperty
 	private Ssl ssl;
 
 	@NestedConfigurationProperty
 	private final Compression compression = new Compression();
+
+	/**
+	 * Custom MIME mappings in addition to the default MIME mappings.
+	 */
+	private final MimeMappings mimeMappings = new MimeMappings();
 
 	@NestedConfigurationProperty
 	private final Http2 http2 = new Http2();
@@ -184,6 +191,14 @@ public class ServerProperties {
 
 	public Compression getCompression() {
 		return this.compression;
+	}
+
+	public MimeMappings getMimeMappings() {
+		return this.mimeMappings;
+	}
+
+	public void setMimeMappings(Map<String, String> customMappings) {
+		customMappings.forEach(this.mimeMappings::add);
 	}
 
 	public Http2 getHttp2() {
@@ -329,6 +344,11 @@ public class ServerProperties {
 			@DurationUnit(ChronoUnit.SECONDS)
 			private Duration timeout = Duration.ofMinutes(30);
 
+			/**
+			 * Maximum number of sessions that can be stored.
+			 */
+			private int maxSessions = 10000;
+
 			@NestedConfigurationProperty
 			private final Cookie cookie = new Cookie();
 
@@ -338,6 +358,14 @@ public class ServerProperties {
 
 			public void setTimeout(Duration timeout) {
 				this.timeout = timeout;
+			}
+
+			public int getMaxSessions() {
+				return this.maxSessions;
+			}
+
+			public void setMaxSessions(int maxSessions) {
+				this.maxSessions = maxSessions;
 			}
 
 			public Cookie getCookie() {
@@ -463,6 +491,7 @@ public class ServerProperties {
 
 		/**
 		 * Whether to reject requests with illegal header names or values.
+		 * @deprecated since 2.7.12 for removal in 3.3.0
 		 */
 		@Deprecated(since = "2.7.12", forRemoval = true) // Remove in 3.3
 		private boolean rejectIllegalHeader = true;
@@ -896,14 +925,21 @@ public class ServerProperties {
 		public static class Threads {
 
 			/**
-			 * Maximum amount of worker threads.
+			 * Maximum amount of worker threads. Doesn't have an effect if virtual threads
+			 * are enabled.
 			 */
 			private int max = 200;
 
 			/**
-			 * Minimum amount of worker threads.
+			 * Minimum amount of worker threads. Doesn't have an effect if virtual threads
+			 * are enabled.
 			 */
 			private int minSpare = 10;
+
+			/**
+			 * Maximum capacity of the thread pool's backing queue.
+			 */
+			private int maxQueueCapacity = 2147483647;
 
 			public int getMax() {
 				return this.max;
@@ -919,6 +955,14 @@ public class ServerProperties {
 
 			public void setMinSpare(int minSpare) {
 				this.minSpare = minSpare;
+			}
+
+			public int getMaxQueueCapacity() {
+				return this.maxQueueCapacity;
+			}
+
+			public void setMaxQueueCapacity(int maxQueueCapacity) {
+				this.maxQueueCapacity = maxQueueCapacity;
 			}
 
 		}
@@ -1308,12 +1352,14 @@ public class ServerProperties {
 			private Integer selectors = -1;
 
 			/**
-			 * Maximum number of threads.
+			 * Maximum number of threads. Doesn't have an effect if virtual threads are
+			 * enabled.
 			 */
 			private Integer max = 200;
 
 			/**
-			 * Minimum number of threads.
+			 * Minimum number of threads. Doesn't have an effect if virtual threads are
+			 * enabled.
 			 */
 			private Integer min = 8;
 

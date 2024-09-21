@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -89,16 +89,9 @@ public class DispatcherServletAutoConfiguration {
 			DispatcherServlet dispatcherServlet = new DispatcherServlet();
 			dispatcherServlet.setDispatchOptionsRequest(webMvcProperties.isDispatchOptionsRequest());
 			dispatcherServlet.setDispatchTraceRequest(webMvcProperties.isDispatchTraceRequest());
-			configureThrowExceptionIfNoHandlerFound(webMvcProperties, dispatcherServlet);
 			dispatcherServlet.setPublishEvents(webMvcProperties.isPublishRequestHandledEvents());
 			dispatcherServlet.setEnableLoggingRequestDetails(webMvcProperties.isLogRequestDetails());
 			return dispatcherServlet;
-		}
-
-		@SuppressWarnings({ "deprecation", "removal" })
-		private void configureThrowExceptionIfNoHandlerFound(WebMvcProperties webMvcProperties,
-				DispatcherServlet dispatcherServlet) {
-			dispatcherServlet.setThrowExceptionIfNoHandlerFound(webMvcProperties.isThrowExceptionIfNoHandlerFound());
 		}
 
 		@Bean
@@ -133,7 +126,7 @@ public class DispatcherServletAutoConfiguration {
 	}
 
 	@Order(Ordered.LOWEST_PRECEDENCE - 10)
-	private static class DefaultDispatcherServletCondition extends SpringBootCondition {
+	private static final class DefaultDispatcherServletCondition extends SpringBootCondition {
 
 		@Override
 		public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {
@@ -160,7 +153,7 @@ public class DispatcherServletAutoConfiguration {
 	}
 
 	@Order(Ordered.LOWEST_PRECEDENCE - 10)
-	private static class DispatcherServletRegistrationCondition extends SpringBootCondition {
+	private static final class DispatcherServletRegistrationCondition extends SpringBootCondition {
 
 		@Override
 		public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {

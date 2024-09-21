@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ import org.springframework.boot.configurationmetadata.Deprecation;
  * @author Stephane Nicoll
  * @author Andy Wilkinson
  * @author Phillip Webb
+ * @author Moritz Halbritter
  */
 class ChangelogWriter implements AutoCloseable {
 
@@ -67,11 +68,11 @@ class ChangelogWriter implements AutoCloseable {
 		String newVersionNumber = changelog.newVersionNumber();
 		Map<DifferenceType, List<Difference>> differencesByType = collateByType(changelog);
 		write("Configuration property changes between `%s` and `%s`%n", oldVersionNumber, newVersionNumber);
-		write("%n%n%n== Deprecated in %s%n", newVersionNumber);
+		write("%n%n%n== Deprecated in %s%n%n", newVersionNumber);
 		writeDeprecated(differencesByType.get(DifferenceType.DEPRECATED));
-		write("%n%n%n== Added in %s%n", newVersionNumber);
+		write("%n%n%n== Added in %s%n%n", newVersionNumber);
 		writeAdded(differencesByType.get(DifferenceType.ADDED));
-		write("%n%n%n== Removed in %s%n", newVersionNumber);
+		write("%n%n%n== Removed in %s%n%n", newVersionNumber);
 		writeRemoved(differencesByType.get(DifferenceType.DELETED), differencesByType.get(DifferenceType.DEPRECATED));
 	}
 
@@ -198,8 +199,18 @@ class ChangelogWriter implements AutoCloseable {
 		return (value != null) ? "`%s`".formatted(value) : null;
 	}
 
-	private void writeCell(String format, Object... args) {
-		write((format != null) ? "| %s%n".formatted(format) : "|%n", args);
+	private void writeCell(String content) {
+		if (content == null) {
+			write("|%n");
+		}
+		else {
+			String escaped = escapeForTableCell(content);
+			write("| %s%n".formatted(escaped));
+		}
+	}
+
+	private String escapeForTableCell(String content) {
+		return content.replace("|", "\\|");
 	}
 
 	private void write(String format, Object... args) {

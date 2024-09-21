@@ -43,7 +43,9 @@ class JdbcClientAutoConfigurationTests {
 
 	@Test
 	void jdbcClientWhenNoAvailableJdbcTemplateIsNotCreated() {
-		new ApplicationContextRunner().withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class))
+		new ApplicationContextRunner()
+			.withConfiguration(
+					AutoConfigurations.of(DataSourceAutoConfiguration.class, JdbcClientAutoConfiguration.class))
 			.run((context) -> assertThat(context).doesNotHaveBean(JdbcClient.class));
 	}
 
@@ -79,7 +81,7 @@ class JdbcClientAutoConfigurationTests {
 	@Test
 	void jdbcClientIsOrderedAfterLiquibaseMigration() {
 		this.contextRunner.withUserConfiguration(JdbcClientDataSourceMigrationValidator.class)
-			.withPropertyValues("spring.liquibase.changeLog:classpath:db/changelog/db.changelog-city.yaml")
+			.withPropertyValues("spring.liquibase.change-log:classpath:db/changelog/db.changelog-city.yaml")
 			.withConfiguration(AutoConfigurations.of(LiquibaseAutoConfiguration.class))
 			.run((context) -> {
 				assertThat(context).hasNotFailed().hasSingleBean(JdbcClient.class);
@@ -92,7 +94,7 @@ class JdbcClientAutoConfigurationTests {
 		private final Long count;
 
 		JdbcClientDataSourceMigrationValidator(JdbcClient jdbcClient) {
-			this.count = jdbcClient.sql("SELECT COUNT(*) from CITY").query().singleValue();
+			this.count = jdbcClient.sql("SELECT COUNT(*) from CITY").query(Long.class).single();
 		}
 
 	}

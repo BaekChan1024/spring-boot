@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,9 +32,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * client.
  *
  * @author Andy Wilkinson
+ * @deprecated since 3.2.0 for removal in 3.4.0
  */
 @ClassPathExclusions({ "httpclient5-*.jar", "jetty-client-*.jar" })
-@Deprecated(since = "3.2.0")
+@Deprecated(since = "3.2.0", forRemoval = true)
 @SuppressWarnings("removal")
 class ClientHttpRequestFactoriesOkHttp4Tests
 		extends AbstractClientHttpRequestFactoriesTests<OkHttp3ClientHttpRequestFactory> {
@@ -57,6 +58,16 @@ class ClientHttpRequestFactoriesOkHttp4Tests
 	@Override
 	protected long readTimeout(OkHttp3ClientHttpRequestFactory requestFactory) {
 		return ((OkHttpClient) ReflectionTestUtils.getField(requestFactory, "client")).readTimeoutMillis();
+	}
+
+	@Override
+	protected boolean supportsSettingConnectTimeout() {
+		return true;
+	}
+
+	@Override
+	protected boolean supportsSettingReadTimeout() {
+		return true;
 	}
 
 }

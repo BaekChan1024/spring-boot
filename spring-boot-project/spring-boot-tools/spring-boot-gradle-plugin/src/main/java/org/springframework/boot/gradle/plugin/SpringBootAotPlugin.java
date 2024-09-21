@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,9 +35,12 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.plugins.PluginContainer;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import org.springframework.boot.gradle.tasks.aot.AbstractAot;
 import org.springframework.boot.gradle.tasks.aot.ProcessAot;
@@ -116,7 +119,9 @@ public class SpringBootAotPlugin implements Plugin<Project> {
 	private void registerProcessAotTask(Project project, SourceSet aotSourceSet, SourceSet mainSourceSet) {
 		TaskProvider<ResolveMainClassName> resolveMainClassName = project.getTasks()
 			.named(SpringBootPlugin.RESOLVE_MAIN_CLASS_NAME_TASK_NAME, ResolveMainClassName.class);
-		Configuration aotClasspath = createAotProcessingClasspath(project, PROCESS_AOT_TASK_NAME, mainSourceSet);
+		Configuration aotClasspath = createAotProcessingClasspath(project, PROCESS_AOT_TASK_NAME, mainSourceSet,
+				Set.of(SpringBootPlugin.DEVELOPMENT_ONLY_CONFIGURATION_NAME,
+						SpringBootPlugin.TEST_AND_DEVELOPMENT_ONLY_CONFIGURATION_NAME));
 		project.getDependencies().add(aotClasspath.getName(), project.files(mainSourceSet.getOutput()));
 		Configuration compileClasspath = project.getConfigurations()
 			.getByName(aotSourceSet.getCompileClasspathConfigurationName());
@@ -147,33 +152,45 @@ public class SpringBootAotPlugin implements Plugin<Project> {
 		task.getClassesOutput()
 			.set(project.getLayout().getBuildDirectory().dir("generated/" + sourceSet.getName() + "Classes"));
 		task.getGroupId().set(project.provider(() -> String.valueOf(project.getGroup())));
-		task.getArtifactId().set(project.provider(() -> project.getName()));
+		task.getArtifactId().set(project.provider(project::getName));
+		configureToolchainConvention(project, task);
 	}
 
-	@SuppressWarnings("unchecked")
-	private Configuration createAotProcessingClasspath(Project project, String taskName, SourceSet inputSourceSet) {
+	private void configureToolchainConvention(Project project, AbstractAot aotTask) {
+		JavaToolchainSpec toolchain = project.getExtensions().getByType(JavaPluginExtension.class).getToolchain();
+		JavaToolchainService toolchainService = project.getExtensions().getByType(JavaToolchainService.class);
+		aotTask.getJavaLauncher().convention(toolchainService.launcherFor(toolchain));
+	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private Configuration createAotProcessingClasspath(Project project, String taskName, SourceSet inputSourceSet,
+			Set<String> developmentOnlyConfigurationNames) {
 		Configuration base = project.getConfigurations()
 			.getByName(inputSourceSet.getRuntimeClasspathConfigurationName());
 		return project.getConfigurations().create(taskName + "Classpath", (classpath) -> {
 			classpath.setCanBeConsumed(false);
+			if (!classpath.isCanBeResolved()) {
+				throw new IllegalStateException("Unexpected");
+			}
 			classpath.setCanBeResolved(true);
 			classpath.setDescription("Classpath of the " + taskName + " task.");
-			removeDevelopmentOnly(base.getExtendsFrom()).forEach(classpath::extendsFrom);
+			removeDevelopmentOnly(base.getExtendsFrom(), developmentOnlyConfigurationNames)
+				.forEach(classpath::extendsFrom);
 			classpath.attributes((attributes) -> {
+				ProviderFactory providers = project.getProviders();
 				AttributeContainer baseAttributes = base.getAttributes();
-				for (Attribute<?> attribute : baseAttributes.keySet()) {
-					attributes.attribute((Attribute<Object>) attribute, baseAttributes.getAttribute(attribute));
+				for (Attribute attribute : baseAttributes.keySet()) {
+					attributes.attributeProvider(attribute,
+							providers.provider(() -> baseAttributes.getAttribute(attribute)));
 				}
 			});
 		});
 	}
 
-	private Stream<Configuration> removeDevelopmentOnly(Set<Configuration> configurations) {
-		return configurations.stream().filter(this::isNotDevelopmentOnly);
-	}
-
-	private boolean isNotDevelopmentOnly(Configuration configuration) {
-		return !SpringBootPlugin.DEVELOPMENT_ONLY_CONFIGURATION_NAME.equals(configuration.getName());
+	private Stream<Configuration> removeDevelopmentOnly(Set<Configuration> configurations,
+			Set<String> developmentOnlyConfigurationNames) {
+		return configurations.stream()
+			.filter((configuration) -> !developmentOnlyConfigurationNames.contains(configuration.getName()));
 	}
 
 	private void configureDependsOn(Project project, SourceSet aotSourceSet,
@@ -185,7 +202,8 @@ public class SpringBootAotPlugin implements Plugin<Project> {
 
 	private void registerProcessTestAotTask(Project project, SourceSet mainSourceSet, SourceSet aotTestSourceSet,
 			SourceSet testSourceSet) {
-		Configuration aotClasspath = createAotProcessingClasspath(project, PROCESS_TEST_AOT_TASK_NAME, testSourceSet);
+		Configuration aotClasspath = createAotProcessingClasspath(project, PROCESS_TEST_AOT_TASK_NAME, testSourceSet,
+				Set.of(SpringBootPlugin.DEVELOPMENT_ONLY_CONFIGURATION_NAME));
 		addJUnitPlatformLauncherDependency(project, aotClasspath);
 		Configuration compileClasspath = project.getConfigurations()
 			.getByName(aotTestSourceSet.getCompileClasspathConfigurationName());

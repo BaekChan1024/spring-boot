@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.boot.web.embedded.jetty;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -29,8 +28,6 @@ import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.NetworkConnector;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.ContextHandler;
-import org.eclipse.jetty.server.handler.HandlerCollection;
-import org.eclipse.jetty.server.handler.HandlerWrapper;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
 
 import org.springframework.boot.web.server.GracefulShutdownCallback;
@@ -38,6 +35,7 @@ import org.springframework.boot.web.server.GracefulShutdownResult;
 import org.springframework.boot.web.server.PortInUseException;
 import org.springframework.boot.web.server.WebServer;
 import org.springframework.boot.web.server.WebServerException;
+import org.springframework.boot.web.server.WebServerFactory;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
@@ -106,7 +104,7 @@ public class JettyWebServer implements WebServer {
 		if (handler instanceof StatisticsHandler statisticsHandler) {
 			return statisticsHandler;
 		}
-		if (handler instanceof HandlerWrapper handlerWrapper) {
+		if (handler instanceof Handler.Wrapper handlerWrapper) {
 			return findStatisticsHandler(handlerWrapper.getHandler());
 		}
 		return null;
@@ -182,7 +180,9 @@ public class JettyWebServer implements WebServer {
 	}
 
 	String getStartedLogMessage() {
-		return "Jetty started on " + getActualPortsDescription() + " with context path '" + getContextPath() + "'";
+		String contextPath = getContextPath();
+		return "Jetty started on " + getActualPortsDescription()
+				+ ((contextPath != null) ? " with context path '" + contextPath + "'" : "");
 	}
 
 	private String getActualPortsDescription() {
@@ -208,7 +208,11 @@ public class JettyWebServer implements WebServer {
 	}
 
 	private String getContextPath() {
-		return Arrays.stream(this.server.getHandlers())
+		if (JettyReactiveWebServerFactory.class.equals(this.server.getAttribute(WebServerFactory.class.getName()))) {
+			return null;
+		}
+		return this.server.getHandlers()
+			.stream()
 			.map(this::findContextHandler)
 			.filter(Objects::nonNull)
 			.map(ContextHandler::getContextPath)
@@ -216,7 +220,7 @@ public class JettyWebServer implements WebServer {
 	}
 
 	private ContextHandler findContextHandler(Handler handler) {
-		while (handler instanceof HandlerWrapper handlerWrapper) {
+		while (handler instanceof Handler.Wrapper handlerWrapper) {
 			if (handler instanceof ContextHandler contextHandler) {
 				return contextHandler;
 			}
@@ -225,17 +229,21 @@ public class JettyWebServer implements WebServer {
 		return null;
 	}
 
-	private void handleDeferredInitialize(Handler... handlers) throws Exception {
+	private void handleDeferredInitialize(List<Handler> handlers) throws Exception {
 		for (Handler handler : handlers) {
-			if (handler instanceof JettyEmbeddedWebAppContext jettyEmbeddedWebAppContext) {
-				jettyEmbeddedWebAppContext.deferredInitialize();
-			}
-			else if (handler instanceof HandlerWrapper handlerWrapper) {
-				handleDeferredInitialize(handlerWrapper.getHandler());
-			}
-			else if (handler instanceof HandlerCollection handlerCollection) {
-				handleDeferredInitialize(handlerCollection.getHandlers());
-			}
+			handleDeferredInitialize(handler);
+		}
+	}
+
+	private void handleDeferredInitialize(Handler handler) throws Exception {
+		if (handler instanceof JettyEmbeddedWebAppContext jettyEmbeddedWebAppContext) {
+			jettyEmbeddedWebAppContext.deferredInitialize();
+		}
+		else if (handler instanceof Handler.Wrapper handlerWrapper) {
+			handleDeferredInitialize(handlerWrapper.getHandler());
+		}
+		else if (handler instanceof Handler.Collection handlerCollection) {
+			handleDeferredInitialize(handlerCollection.getHandlers());
 		}
 	}
 
@@ -291,6 +299,15 @@ public class JettyWebServer implements WebServer {
 		return 0;
 	}
 
+	/**
+	 * Initiates a graceful shutdown of the Jetty web server. Handling of new requests is
+	 * prevented and the given {@code callback} is invoked at the end of the attempt. The
+	 * attempt can be explicitly ended by invoking {@link #stop}.
+	 * <p>
+	 * Once shutdown has been initiated Jetty will reject any new connections. Requests on
+	 * existing connections will be accepted, however, a {@code Connection: close} header
+	 * will be returned in the response.
+	 */
 	@Override
 	public void shutDownGracefully(GracefulShutdownCallback callback) {
 		if (this.gracefulShutdown == null) {

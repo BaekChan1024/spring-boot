@@ -25,7 +25,7 @@ import org.springframework.boot.web.server.Ssl;
 import org.springframework.util.unit.DataSize;
 
 /**
- * {@link ConfigurationProperties properties} for RSocket support.
+ * {@link ConfigurationProperties Properties} for RSocket support.
  *
  * @author Brian Clozel
  * @author Chris Bono
@@ -130,7 +130,7 @@ public class RSocketProperties {
 		public static class Spec {
 
 			/**
-			 * Sub-protocol to use in websocket handshake signature.
+			 * Sub-protocols to use in websocket handshake signature.
 			 */
 			private String protocols;
 

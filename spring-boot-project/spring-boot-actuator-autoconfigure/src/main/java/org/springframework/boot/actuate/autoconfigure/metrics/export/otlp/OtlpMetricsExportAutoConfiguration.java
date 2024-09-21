@@ -32,6 +32,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for exporting metrics to OTLP.
@@ -51,24 +52,46 @@ public class OtlpMetricsExportAutoConfiguration {
 
 	private final OtlpProperties properties;
 
-	private final OpenTelemetryProperties openTelemetryProperties;
-
-	public OtlpMetricsExportAutoConfiguration(OtlpProperties properties,
-			OpenTelemetryProperties openTelemetryProperties) {
+	OtlpMetricsExportAutoConfiguration(OtlpProperties properties) {
 		this.properties = properties;
-		this.openTelemetryProperties = openTelemetryProperties;
 	}
 
 	@Bean
 	@ConditionalOnMissingBean
-	public OtlpConfig otlpConfig() {
-		return new OtlpPropertiesConfigAdapter(this.properties, this.openTelemetryProperties);
+	OtlpMetricsConnectionDetails otlpMetricsConnectionDetails() {
+		return new PropertiesOtlpMetricsConnectionDetails(this.properties);
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
+	OtlpConfig otlpConfig(OpenTelemetryProperties openTelemetryProperties,
+			OtlpMetricsConnectionDetails connectionDetails, Environment environment) {
+		return new OtlpPropertiesConfigAdapter(this.properties, openTelemetryProperties, connectionDetails,
+				environment);
 	}
 
 	@Bean
 	@ConditionalOnMissingBean
 	public OtlpMeterRegistry otlpMeterRegistry(OtlpConfig otlpConfig, Clock clock) {
 		return new OtlpMeterRegistry(otlpConfig, clock);
+	}
+
+	/**
+	 * Adapts {@link OtlpProperties} to {@link OtlpMetricsConnectionDetails}.
+	 */
+	static class PropertiesOtlpMetricsConnectionDetails implements OtlpMetricsConnectionDetails {
+
+		private final OtlpProperties properties;
+
+		PropertiesOtlpMetricsConnectionDetails(OtlpProperties properties) {
+			this.properties = properties;
+		}
+
+		@Override
+		public String getUrl() {
+			return this.properties.getUrl();
+		}
+
 	}
 
 }

@@ -16,6 +16,7 @@
 
 package org.springframework.boot.autoconfigure.amqp;
 
+import com.rabbitmq.client.ConnectionFactory;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.amqp.rabbit.config.DirectRabbitListenerContainerFactory;
@@ -25,7 +26,7 @@ import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.boot.context.properties.source.InvalidConfigurationPropertyValueException;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 /**
  * Tests for {@link RabbitProperties}.
@@ -34,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @author Andy Wilkinson
  * @author Stephane Nicoll
  * @author Rafael Carvalho
+ * @author Scott Frederick
  */
 class RabbitPropertiesTests {
 
@@ -282,6 +284,13 @@ class RabbitPropertiesTests {
 	}
 
 	@Test
+	void determineAddressesUsesIpv6HostAndPortPropertiesWhenNoAddressesSet() {
+		this.properties.setHost("[::1]");
+		this.properties.setPort(32863);
+		assertThat(this.properties.determineAddresses()).isEqualTo("[::1]:32863");
+	}
+
+	@Test
 	void determineSslUsingAmqpsReturnsStateOfFirstAddress() {
 		this.properties.setAddresses("amqps://root:password@otherhost,amqp://root:password2@otherhost2");
 		assertThat(this.properties.getSsl().determineEnabled()).isTrue();
@@ -311,6 +320,19 @@ class RabbitPropertiesTests {
 	void determineSslReturnFlagPropertyWhenNoAddresses() {
 		this.properties.getSsl().setEnabled(true);
 		assertThat(this.properties.getSsl().determineEnabled()).isTrue();
+	}
+
+	@Test
+	void determineSslEnabledIsTrueWhenBundleIsSetAndNoAddresses() {
+		this.properties.getSsl().setBundle("test");
+		assertThat(this.properties.getSsl().determineEnabled()).isTrue();
+	}
+
+	@Test
+	void propertiesUseConsistentDefaultValues() {
+		ConnectionFactory connectionFactory = new ConnectionFactory();
+		assertThat(connectionFactory).hasFieldOrPropertyWithValue("maxInboundMessageBodySize",
+				(int) this.properties.getMaxInboundMessageBodySize().toBytes());
 	}
 
 	@Test
@@ -347,9 +369,9 @@ class RabbitPropertiesTests {
 	void hostPropertyMustBeSingleHost() {
 		this.properties.setHost("my-rmq-host.net,my-rmq-host-2.net");
 		assertThat(this.properties.getHost()).isEqualTo("my-rmq-host.net,my-rmq-host-2.net");
-		assertThatThrownBy(this.properties::determineAddresses)
-			.isInstanceOf(InvalidConfigurationPropertyValueException.class)
-			.hasMessageContaining("spring.rabbitmq.host");
+		assertThatExceptionOfType(InvalidConfigurationPropertyValueException.class)
+			.isThrownBy(this.properties::determineAddresses)
+			.withMessageContaining("spring.rabbitmq.host");
 	}
 
 }

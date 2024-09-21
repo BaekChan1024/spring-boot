@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -87,6 +87,7 @@ public abstract class AbstractRabbitListenerContainerFactoryConfigurer<T extends
 	/**
 	 * Set the task executor to use.
 	 * @param taskExecutor the task executor
+	 * @since 3.2.0
 	 */
 	public void setTaskExecutor(Executor taskExecutor) {
 		this.taskExecutor = taskExecutor;
@@ -133,6 +134,7 @@ public abstract class AbstractRabbitListenerContainerFactoryConfigurer<T extends
 		if (this.taskExecutor != null) {
 			factory.setTaskExecutor(this.taskExecutor);
 		}
+		factory.setObservationEnabled(configuration.isObservationEnabled());
 		ListenerRetry retryConfig = configuration.getRetry();
 		if (retryConfig.isEnabled()) {
 			RetryInterceptorBuilder<?, ?> builder = (retryConfig.isStateless()) ? RetryInterceptorBuilder.stateless()

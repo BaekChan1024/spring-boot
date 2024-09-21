@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,8 @@ import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.result.ResolvedArtifactResult;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskAction;
 
@@ -46,7 +48,7 @@ import org.gradle.api.tasks.TaskAction;
  *
  * @author Andy Wilkinson
  */
-public class CheckClasspathForUnnecessaryExclusions extends DefaultTask {
+public abstract class CheckClasspathForUnnecessaryExclusions extends DefaultTask {
 
 	private static final Map<String, String> SPRING_BOOT_DEPENDENCIES_PROJECT = Collections.singletonMap("path",
 			":spring-boot-project:spring-boot-dependencies");
@@ -61,6 +63,8 @@ public class CheckClasspathForUnnecessaryExclusions extends DefaultTask {
 
 	private final ConfigurationContainer configurations;
 
+	private Configuration classpath;
+
 	@Inject
 	public CheckClasspathForUnnecessaryExclusions(DependencyHandler dependencyHandler,
 			ConfigurationContainer configurations) {
@@ -72,9 +76,15 @@ public class CheckClasspathForUnnecessaryExclusions extends DefaultTask {
 	}
 
 	public void setClasspath(Configuration classpath) {
+		this.classpath = classpath;
 		this.exclusionsByDependencyId.clear();
 		this.dependencyById.clear();
 		classpath.getAllDependencies().all(this::processDependency);
+	}
+
+	@Classpath
+	public FileCollection getClasspath() {
+		return this.classpath;
 	}
 
 	private void processDependency(Dependency dependency) {

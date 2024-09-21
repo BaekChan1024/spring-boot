@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,8 +35,6 @@ import org.springframework.boot.ssl.SslBundle;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
@@ -150,10 +148,8 @@ public class RestTemplateBuilder {
 
 	/**
 	 * Set a root URL that should be applied to each request that starts with {@code '/'}.
-	 * Since this works by adding a {@link UriTemplateHandler} to the
-	 * {@link RestTemplate}, the root URL will only apply when {@code String} variants of
-	 * the {@link RestTemplate} methods are used for specifying the request URL. See
-	 * {@link RootUriTemplateHandler} for details.
+	 * The root URL will only apply when {@code String} variants of the
+	 * {@link RestTemplate} methods are used for specifying the request URL.
 	 * @param rootUri the root URI or {@code null}
 	 * @return a new builder instance
 	 */
@@ -439,21 +435,6 @@ public class RestTemplateBuilder {
 	}
 
 	/**
-	 * Has no effect as support for buffering has been removed in Spring Framework 6.1.
-	 * @param bufferRequestBody value of the bufferRequestBody parameter
-	 * @return a new builder instance.
-	 * @since 2.2.0
-	 * @deprecated since 3.2.0 for removal in 3.4.0 as support for buffering has been
-	 * removed in Spring Framework 6.1
-	 * @see SimpleClientHttpRequestFactory#setBufferRequestBody(boolean)
-	 * @see HttpComponentsClientHttpRequestFactory#setBufferRequestBody(boolean)
-	 */
-	@Deprecated(since = "3.2.0", forRemoval = true)
-	public RestTemplateBuilder setBufferRequestBody(boolean bufferRequestBody) {
-		return this;
-	}
-
-	/**
 	 * Sets the SSL bundle on the underlying {@link ClientHttpRequestFactory}.
 	 * @param sslBundle the SSL bundle
 	 * @return a new builder instance
@@ -639,7 +620,7 @@ public class RestTemplateBuilder {
 			restTemplate.setErrorHandler(this.errorHandler);
 		}
 		if (this.rootUri != null) {
-			RootUriTemplateHandler.addTo(restTemplate, this.rootUri);
+			RootUriBuilderFactory.applyTo(restTemplate, this.rootUri);
 		}
 		restTemplate.getInterceptors().addAll(this.interceptors);
 		if (!CollectionUtils.isEmpty(this.customizers)) {

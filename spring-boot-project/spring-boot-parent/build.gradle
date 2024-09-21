@@ -30,11 +30,11 @@ bom {
 	library("C3P0", "0.9.5.5") {
 		group("com.mchange") {
 			modules = [
-					"c3p0"
+				"c3p0"
 			]
 		}
 	}
-	library("Commons Compress", "1.23.0") {
+	library("Commons Compress", "1.25.0") {
 		group("org.apache.commons") {
 			modules = [
 				"commons-compress"
@@ -48,10 +48,10 @@ bom {
 			]
 		}
 	}
-	library("Jakarta Inject", "2.0.1") {
-		group("jakarta.inject") {
+	library("CycloneDX Gradle Plugin", "1.10.0") {
+		group("org.cyclonedx") {
 			modules = [
-				"jakarta.inject-api"
+				"cyclonedx-gradle-plugin"
 			]
 		}
 	}
@@ -87,7 +87,7 @@ bom {
 			]
 		}
 	}
-	library("Maven", "3.9.4") {
+	library("Maven", "${mavenVersion}") {
 		group("org.apache.maven") {
 			modules = [
 				"maven-core",
@@ -138,6 +138,13 @@ bom {
 			]
 		}
 	}
+	library("Micrometer Context Propagation", "1.0.5") {
+		group("io.micrometer") {
+			modules = [
+				"context-propagation"
+			]
+		}
+	}
 	library("MockK", "1.13.5") {
 		group("io.mockk") {
 			modules = [
@@ -149,6 +156,13 @@ bom {
 		group("org.graalvm.buildtools") {
 			modules = [
 				"native-gradle-plugin"
+			]
+		}
+	}
+	library("OpenTelemetry Logback Appender", "2.7.0-alpha") {
+		group("io.opentelemetry.instrumentation") {
+			modules = [
+				"opentelemetry-logback-appender-1.0"
 			]
 		}
 	}
@@ -191,14 +205,6 @@ bom {
 		group("org.testng") {
 			modules = [
 				"testng"
-			]
-		}
-	}
-	library("Spring Asciidoctor Extensions", "0.6.2") {
-		group("io.spring.asciidoctor") {
-			modules = [
-				"spring-asciidoctor-extensions-spring-boot",
-				"spring-asciidoctor-extensions-section-ids"
 			]
 		}
 	}

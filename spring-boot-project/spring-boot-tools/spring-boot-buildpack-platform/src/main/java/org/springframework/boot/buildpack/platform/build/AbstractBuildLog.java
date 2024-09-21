@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 import org.springframework.boot.buildpack.platform.docker.LogUpdateEvent;
 import org.springframework.boot.buildpack.platform.docker.TotalProgressEvent;
 import org.springframework.boot.buildpack.platform.docker.type.Image;
+import org.springframework.boot.buildpack.platform.docker.type.ImagePlatform;
 import org.springframework.boot.buildpack.platform.docker.type.ImageReference;
 import org.springframework.boot.buildpack.platform.docker.type.VolumeName;
 
@@ -43,8 +44,12 @@ public abstract class AbstractBuildLog implements BuildLog {
 	}
 
 	@Override
-	public Consumer<TotalProgressEvent> pullingImage(ImageReference imageReference, ImageType imageType) {
-		return getProgressConsumer(String.format(" > Pulling %s '%s'", imageType.getDescription(), imageReference));
+	public Consumer<TotalProgressEvent> pullingImage(ImageReference imageReference, ImagePlatform platform,
+			ImageType imageType) {
+		return (platform != null)
+				? getProgressConsumer(" > Pulling %s '%s' for platform '%s'".formatted(imageType.getDescription(),
+						imageReference, platform))
+				: getProgressConsumer(" > Pulling %s '%s'".formatted(imageType.getDescription(), imageReference));
 	}
 
 	@Override
@@ -66,6 +71,12 @@ public abstract class AbstractBuildLog implements BuildLog {
 	public void executingLifecycle(BuildRequest request, LifecycleVersion version, VolumeName buildCacheVolume) {
 		log(" > Executing lifecycle version " + version);
 		log(" > Using build cache volume '" + buildCacheVolume + "'");
+	}
+
+	@Override
+	public void executingLifecycle(BuildRequest request, LifecycleVersion version, Cache buildCache) {
+		log(" > Executing lifecycle version " + version);
+		log(" > Using build cache " + buildCache);
 	}
 
 	@Override
@@ -93,6 +104,17 @@ public abstract class AbstractBuildLog implements BuildLog {
 	@Override
 	public void taggedImage(ImageReference tag) {
 		log("Successfully created image tag '" + tag + "'");
+		log();
+	}
+
+	@Override
+	public void failedCleaningWorkDir(Cache cache, Exception exception) {
+		StringBuilder message = new StringBuilder("Warning: Working location " + cache + " could not be cleaned");
+		if (exception != null) {
+			message.append(": ").append(exception.getMessage());
+		}
+		log();
+		log(message.toString());
 		log();
 	}
 

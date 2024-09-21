@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,15 +32,17 @@ import org.springframework.boot.docker.compose.core.DockerComposeFile;
 import org.springframework.boot.docker.compose.core.RunningService;
 import org.springframework.boot.docker.compose.lifecycle.DockerComposeProperties.Readiness.Wait;
 import org.springframework.boot.docker.compose.lifecycle.DockerComposeProperties.Start;
+import org.springframework.boot.docker.compose.lifecycle.DockerComposeProperties.Start.Skip;
 import org.springframework.boot.docker.compose.lifecycle.DockerComposeProperties.Stop;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.SimpleApplicationEventMulticaster;
 import org.springframework.core.log.LogMessage;
 import org.springframework.util.Assert;
+import org.springframework.util.CollectionUtils;
 
 /**
- * Manages the lifecycle for docker compose services.
+ * Manages the lifecycle for Docker Compose services.
  *
  * @author Moritz Halbritter
  * @author Andy Wilkinson
@@ -109,7 +111,7 @@ class DockerComposeLifecycleManager {
 		Set<String> activeProfiles = this.properties.getProfiles().getActive();
 		DockerCompose dockerCompose = getDockerCompose(composeFile, activeProfiles);
 		if (!dockerCompose.hasDefinedServices()) {
-			logger.warn(LogMessage.format("No services defined in Docker Compose file '%s' with active profiles %s",
+			logger.warn(LogMessage.format("No services defined in Docker Compose file %s with active profiles %s",
 					composeFile, activeProfiles));
 			return;
 		}
@@ -118,12 +120,21 @@ class DockerComposeLifecycleManager {
 		Stop stop = this.properties.getStop();
 		Wait wait = this.properties.getReadiness().getWait();
 		List<RunningService> runningServices = dockerCompose.getRunningServices();
-		if (lifecycleManagement.shouldStart() && runningServices.isEmpty()) {
-			start.getCommand().applyTo(dockerCompose, start.getLogLevel());
-			runningServices = dockerCompose.getRunningServices();
-			wait = (wait != Wait.ONLY_IF_STARTED) ? wait : Wait.ALWAYS;
-			if (lifecycleManagement.shouldStop()) {
-				this.shutdownHandlers.add(() -> stop.getCommand().applyTo(dockerCompose, stop.getTimeout()));
+		if (lifecycleManagement.shouldStart()) {
+			Skip skip = this.properties.getStart().getSkip();
+			if (skip.shouldSkip(runningServices)) {
+				logger.info(skip.getLogMessage());
+			}
+			else {
+				start.getCommand().applyTo(dockerCompose, start.getLogLevel(), start.getArguments());
+				runningServices = dockerCompose.getRunningServices();
+				if (wait == Wait.ONLY_IF_STARTED) {
+					wait = Wait.ALWAYS;
+				}
+				if (lifecycleManagement.shouldStop()) {
+					this.shutdownHandlers
+						.add(() -> stop.getCommand().applyTo(dockerCompose, stop.getTimeout(), stop.getArguments()));
+				}
 			}
 		}
 		List<RunningService> relevantServices = new ArrayList<>(runningServices);
@@ -135,11 +146,16 @@ class DockerComposeLifecycleManager {
 	}
 
 	protected DockerComposeFile getComposeFile() {
-		DockerComposeFile composeFile = (this.properties.getFile() != null)
-				? DockerComposeFile.of(this.properties.getFile()) : DockerComposeFile.find(this.workingDirectory);
+		DockerComposeFile composeFile = (CollectionUtils.isEmpty(this.properties.getFile()))
+				? DockerComposeFile.find(this.workingDirectory) : DockerComposeFile.of(this.properties.getFile());
 		Assert.state(composeFile != null, () -> "No Docker Compose file found in directory '%s'".formatted(
 				((this.workingDirectory != null) ? this.workingDirectory : new File(".")).toPath().toAbsolutePath()));
-		logger.info(LogMessage.format("Using Docker Compose file '%s'", composeFile));
+		if (composeFile.getFiles().size() == 1) {
+			logger.info(LogMessage.format("Using Docker Compose file %s", composeFile.getFiles().get(0)));
+		}
+		else {
+			logger.info(LogMessage.format("Using Docker Compose files %s", composeFile.toString()));
+		}
 		return composeFile;
 	}
 

@@ -35,7 +35,7 @@ dependencies {
 	intTestImplementation("org.junit.jupiter:junit-jupiter")
 	intTestImplementation("org.springframework:spring-core")
 
-	loader(project(":spring-boot-project:spring-boot-tools:spring-boot-loader"))
+	loader(project(":spring-boot-project:spring-boot-tools:spring-boot-loader-classic"))
 
 	testImplementation(project(":spring-boot-project:spring-boot"))
 	testImplementation(project(":spring-boot-project:spring-boot-tools:spring-boot-test-support"))
@@ -66,7 +66,7 @@ task fullJar(type: Jar) {
 	}
 	manifest {
 		attributes(
-			"Main-Class": "org.springframework.boot.loader.JarLauncher",
+			"Main-Class": "org.springframework.boot.loader.launch.JarLauncher",
 			"Start-Class": "org.springframework.boot.cli.SpringCli"
 		)
 	}
@@ -82,11 +82,11 @@ def configureArchive(archive) {
 		into "lib/"
 	}
 	archive.from(file("src/main/content")) {
-		dirMode = 0755
-		fileMode = 0644
+		dirPermissions { unix(0755) }
+		filePermissions { unix(0644) }
 	}
 	archive.from(file("src/main/executablecontent")) {
-		fileMode = 0755
+		filePermissions { unix(0755) }
 	}
 }
 

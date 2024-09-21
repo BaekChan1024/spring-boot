@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ public class BasicJsonParser extends AbstractJsonParser {
 
 	private List<Object> parseListInternal(int nesting, String json) {
 		List<Object> list = new ArrayList<>();
-		json = trimLeadingCharacter(trimTrailingCharacter(json, ']'), '[').trim();
+		json = trimEdges(json, '[', ']').trim();
 		for (String value : tokenize(json)) {
 			list.add(parseInternal(nesting + 1, value));
 		}
@@ -70,35 +70,37 @@ public class BasicJsonParser extends AbstractJsonParser {
 			return parseMapInternal(nesting + 1, json);
 		}
 		if (json.startsWith("\"")) {
-			return trimTrailingCharacter(trimLeadingCharacter(json, '"'), '"');
+			return trimEdges(json, '"', '"');
 		}
-		try {
-			return Long.valueOf(json);
-		}
-		catch (NumberFormatException ex) {
-			// ignore
-		}
-		try {
-			return Double.valueOf(json);
-		}
-		catch (NumberFormatException ex) {
-			// ignore
-		}
-		return json;
+		return parseNumber(json);
 	}
 
 	private Map<String, Object> parseMapInternal(int nesting, String json) {
 		Map<String, Object> map = new LinkedHashMap<>();
-		json = trimLeadingCharacter(trimTrailingCharacter(json, '}'), '{').trim();
+		json = trimEdges(json, '{', '}').trim();
 		for (String pair : tokenize(json)) {
 			String[] values = StringUtils.trimArrayElements(StringUtils.split(pair, ":"));
 			Assert.state(values[0].startsWith("\"") && values[0].endsWith("\""),
 					"Expecting double-quotes around field names");
-			String key = trimLeadingCharacter(trimTrailingCharacter(values[0], '"'), '"');
+			String key = trimEdges(values[0], '"', '"');
 			Object value = parseInternal(nesting, values[1]);
 			map.put(key, value);
 		}
 		return map;
+	}
+
+	private Object parseNumber(String json) {
+		try {
+			return Long.valueOf(json);
+		}
+		catch (NumberFormatException ex) {
+			try {
+				return Double.valueOf(json);
+			}
+			catch (NumberFormatException ex2) {
+				return json;
+			}
+		}
 	}
 
 	private static String trimTrailingCharacter(String string, char c) {
@@ -113,6 +115,10 @@ public class BasicJsonParser extends AbstractJsonParser {
 			return string.substring(1);
 		}
 		return string;
+	}
+
+	private static String trimEdges(String string, char leadingChar, char trailingChar) {
+		return trimTrailingCharacter(trimLeadingCharacter(string, leadingChar), trailingChar);
 	}
 
 	private List<String> tokenize(String json) {
@@ -158,7 +164,7 @@ public class BasicJsonParser extends AbstractJsonParser {
 			}
 			index++;
 		}
-		if (build.length() > 0) {
+		if (!build.isEmpty()) {
 			list.add(build.toString().trim());
 		}
 		return list;

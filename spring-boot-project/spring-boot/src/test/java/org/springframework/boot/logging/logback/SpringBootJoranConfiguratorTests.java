@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2022 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,12 +73,21 @@ class SpringBootJoranConfiguratorTests {
 	void reset() {
 		this.context.stop();
 		new BasicConfigurator().configure((LoggerContext) LoggerFactory.getILoggerFactory());
+		this.context.start();
 	}
 
 	@Test
 	void profileActive() throws Exception {
 		this.environment.setActiveProfiles("production");
 		initialize("production-profile.xml");
+		this.logger.trace("Hello");
+		assertThat(this.output).contains("Hello");
+	}
+
+	@Test
+	void profileInIncludeActive() throws Exception {
+		this.environment.setActiveProfiles("production");
+		initialize("profile-in-include.xml");
 		this.logger.trace("Hello");
 		assertThat(this.output).contains("Hello");
 	}
@@ -201,6 +210,13 @@ class SpringBootJoranConfiguratorTests {
 		TestPropertySourceUtils.addInlinedPropertiesToEnvironment(this.environment, "my.example-property=false");
 		initialize("property-in-if.xml");
 		assertThat(this.context.getProperty("MYCHECK")).isNull();
+	}
+
+	@Test
+	void springPropertyInInclude() throws Exception {
+		TestPropertySourceUtils.addInlinedPropertiesToEnvironment(this.environment, "my.example-property=test");
+		initialize("property-in-include.xml");
+		assertThat(this.context.getProperty("MINE")).isEqualTo("test");
 	}
 
 	@Test

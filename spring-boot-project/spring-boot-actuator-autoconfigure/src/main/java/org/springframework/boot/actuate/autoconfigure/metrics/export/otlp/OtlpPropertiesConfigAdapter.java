@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,20 @@
 
 package org.springframework.boot.actuate.autoconfigure.metrics.export.otlp;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import io.micrometer.registry.otlp.AggregationTemporality;
+import io.micrometer.registry.otlp.HistogramFlavor;
 import io.micrometer.registry.otlp.OtlpConfig;
 
 import org.springframework.boot.actuate.autoconfigure.metrics.export.properties.StepRegistryPropertiesConfigAdapter;
 import org.springframework.boot.actuate.autoconfigure.opentelemetry.OpenTelemetryProperties;
+import org.springframework.core.env.Environment;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 /**
  * Adapter to convert {@link OtlpProperties} to an {@link OtlpConfig}.
@@ -35,11 +40,23 @@ import org.springframework.util.CollectionUtils;
  */
 class OtlpPropertiesConfigAdapter extends StepRegistryPropertiesConfigAdapter<OtlpProperties> implements OtlpConfig {
 
+	/**
+	 * Default value for application name if {@code spring.application.name} is not set.
+	 */
+	private static final String DEFAULT_APPLICATION_NAME = "unknown_service";
+
 	private final OpenTelemetryProperties openTelemetryProperties;
 
-	OtlpPropertiesConfigAdapter(OtlpProperties properties, OpenTelemetryProperties openTelemetryProperties) {
+	private final OtlpMetricsConnectionDetails connectionDetails;
+
+	private final Environment environment;
+
+	OtlpPropertiesConfigAdapter(OtlpProperties properties, OpenTelemetryProperties openTelemetryProperties,
+			OtlpMetricsConnectionDetails connectionDetails, Environment environment) {
 		super(properties);
+		this.connectionDetails = connectionDetails;
 		this.openTelemetryProperties = openTelemetryProperties;
+		this.environment = environment;
 	}
 
 	@Override
@@ -49,7 +66,7 @@ class OtlpPropertiesConfigAdapter extends StepRegistryPropertiesConfigAdapter<Ot
 
 	@Override
 	public String url() {
-		return get(OtlpProperties::getUrl, OtlpConfig.super::url);
+		return get((properties) -> this.connectionDetails.getUrl(), OtlpConfig.super::url);
 	}
 
 	@Override
@@ -60,15 +77,41 @@ class OtlpPropertiesConfigAdapter extends StepRegistryPropertiesConfigAdapter<Ot
 	@Override
 	@SuppressWarnings("removal")
 	public Map<String, String> resourceAttributes() {
-		if (!CollectionUtils.isEmpty(this.openTelemetryProperties.getResourceAttributes())) {
-			return this.openTelemetryProperties.getResourceAttributes();
-		}
-		return get(OtlpProperties::getResourceAttributes, OtlpConfig.super::resourceAttributes);
+		Map<String, String> resourceAttributes = this.openTelemetryProperties.getResourceAttributes();
+		Map<String, String> result = new HashMap<>((!CollectionUtils.isEmpty(resourceAttributes)) ? resourceAttributes
+				: get(OtlpProperties::getResourceAttributes, OtlpConfig.super::resourceAttributes));
+		result.computeIfAbsent("service.name", (key) -> getApplicationName());
+		result.computeIfAbsent("service.group", (key) -> getApplicationGroup());
+		return Collections.unmodifiableMap(result);
+	}
+
+	private String getApplicationName() {
+		return this.environment.getProperty("spring.application.name", DEFAULT_APPLICATION_NAME);
+	}
+
+	private String getApplicationGroup() {
+		String applicationGroup = this.environment.getProperty("spring.application.group");
+		return (StringUtils.hasLength(applicationGroup)) ? applicationGroup : null;
 	}
 
 	@Override
 	public Map<String, String> headers() {
 		return get(OtlpProperties::getHeaders, OtlpConfig.super::headers);
+	}
+
+	@Override
+	public HistogramFlavor histogramFlavor() {
+		return get(OtlpProperties::getHistogramFlavor, OtlpConfig.super::histogramFlavor);
+	}
+
+	@Override
+	public int maxScale() {
+		return get(OtlpProperties::getMaxScale, OtlpConfig.super::maxScale);
+	}
+
+	@Override
+	public int maxBucketCount() {
+		return get(OtlpProperties::getMaxBucketCount, OtlpConfig.super::maxBucketCount);
 	}
 
 	@Override

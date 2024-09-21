@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuil
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
-import org.eclipse.jetty.client.dynamic.HttpClientTransportDynamic;
+import org.eclipse.jetty.client.transport.HttpClientTransportDynamic;
 import org.eclipse.jetty.io.ClientConnector;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 
@@ -51,7 +51,6 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.http.client.JettyClientHttpRequestFactory;
-import org.springframework.http.client.OkHttp3ClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -90,7 +89,8 @@ public final class ClientHttpRequestFactories {
 	 * <ol>
 	 * <li>{@link HttpComponentsClientHttpRequestFactory}</li>
 	 * <li>{@link JettyClientHttpRequestFactory}</li>
-	 * <li>{@link OkHttp3ClientHttpRequestFactory} (deprecated)</li>
+	 * <li>{@link org.springframework.http.client.OkHttp3ClientHttpRequestFactory
+	 * OkHttp3ClientHttpRequestFactory} (deprecated)</li>
 	 * <li>{@link SimpleClientHttpRequestFactory}</li>
 	 * </ol>
 	 * @param settings the settings to apply
@@ -120,7 +120,8 @@ public final class ClientHttpRequestFactories {
 	 * <li>{@link HttpComponentsClientHttpRequestFactory}</li>
 	 * <li>{@link JdkClientHttpRequestFactory}</li>
 	 * <li>{@link JettyClientHttpRequestFactory}</li>
-	 * <li>{@link OkHttp3ClientHttpRequestFactory} (deprecated)</li>
+	 * <li>{@link org.springframework.http.client.OkHttp3ClientHttpRequestFactory
+	 * OkHttp3ClientHttpRequestFactory} (deprecated)</li>
 	 * <li>{@link SimpleClientHttpRequestFactory}</li>
 	 * </ul>
 	 * A {@code requestFactoryType} of {@link ClientHttpRequestFactory} is equivalent to
@@ -149,7 +150,7 @@ public final class ClientHttpRequestFactories {
 		if (requestFactoryType == SimpleClientHttpRequestFactory.class) {
 			return (T) Simple.get(settings);
 		}
-		if (requestFactoryType == OkHttp3ClientHttpRequestFactory.class) {
+		if (requestFactoryType == org.springframework.http.client.OkHttp3ClientHttpRequestFactory.class) {
 			return (T) OkHttp.get(settings);
 		}
 		return get(() -> createRequestFactory(requestFactoryType), settings);
@@ -212,28 +213,35 @@ public final class ClientHttpRequestFactories {
 						options.getEnabledProtocols(), options.getCiphers(), new DefaultHostnameVerifier());
 				connectionManagerBuilder.setSSLSocketFactory(socketFactory);
 			}
-			PoolingHttpClientConnectionManager connectionManager = connectionManagerBuilder.build();
+			PoolingHttpClientConnectionManager connectionManager = connectionManagerBuilder.useSystemProperties()
+				.build();
 			return HttpClientBuilder.create().useSystemProperties().setConnectionManager(connectionManager).build();
 		}
 
 	}
 
 	/**
-	 * Support for {@link OkHttp3ClientHttpRequestFactory}.
+	 * Support for
+	 * {@link org.springframework.http.client.OkHttp3ClientHttpRequestFactory}.
+	 *
+	 * @deprecated since 3.2.0 for removal in 3.4.0
 	 */
 	@Deprecated(since = "3.2.0", forRemoval = true)
 	@SuppressWarnings("removal")
 	static class OkHttp {
 
-		static OkHttp3ClientHttpRequestFactory get(ClientHttpRequestFactorySettings settings) {
-			OkHttp3ClientHttpRequestFactory requestFactory = createRequestFactory(settings.sslBundle());
+		static org.springframework.http.client.OkHttp3ClientHttpRequestFactory get(
+				ClientHttpRequestFactorySettings settings) {
+			org.springframework.http.client.OkHttp3ClientHttpRequestFactory requestFactory = createRequestFactory(
+					settings.sslBundle());
 			PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
 			map.from(settings::connectTimeout).asInt(Duration::toMillis).to(requestFactory::setConnectTimeout);
 			map.from(settings::readTimeout).asInt(Duration::toMillis).to(requestFactory::setReadTimeout);
 			return requestFactory;
 		}
 
-		private static OkHttp3ClientHttpRequestFactory createRequestFactory(SslBundle sslBundle) {
+		private static org.springframework.http.client.OkHttp3ClientHttpRequestFactory createRequestFactory(
+				SslBundle sslBundle) {
 			if (sslBundle != null) {
 				Assert.state(!sslBundle.getOptions().isSpecified(), "SSL Options cannot be specified with OkHttp");
 				SSLSocketFactory socketFactory = sslBundle.createSslContext().getSocketFactory();
@@ -243,9 +251,9 @@ public final class ClientHttpRequestFactories {
 				OkHttpClient client = new OkHttpClient.Builder()
 					.sslSocketFactory(socketFactory, (X509TrustManager) trustManagers[0])
 					.build();
-				return new OkHttp3ClientHttpRequestFactory(client);
+				return new org.springframework.http.client.OkHttp3ClientHttpRequestFactory(client);
 			}
-			return new OkHttp3ClientHttpRequestFactory();
+			return new org.springframework.http.client.OkHttp3ClientHttpRequestFactory();
 		}
 
 	}
@@ -328,7 +336,7 @@ public final class ClientHttpRequestFactories {
 		 */
 		private static class SimpleClientHttpsRequestFactory extends SimpleClientHttpRequestFactory {
 
-			private SslBundle sslBundle;
+			private final SslBundle sslBundle;
 
 			SimpleClientHttpsRequestFactory(SslBundle sslBundle) {
 				this.sslBundle = sslBundle;
@@ -384,13 +392,23 @@ public final class ClientHttpRequestFactories {
 		}
 
 		private static void setConnectTimeout(ClientHttpRequestFactory factory, Duration connectTimeout) {
-			Method method = findMethod(factory, "setConnectTimeout", int.class);
+			Method method = tryFindMethod(factory, "setConnectTimeout", Duration.class);
+			if (method != null) {
+				invoke(factory, method, connectTimeout);
+				return;
+			}
+			method = findMethod(factory, "setConnectTimeout", int.class);
 			int timeout = Math.toIntExact(connectTimeout.toMillis());
 			invoke(factory, method, timeout);
 		}
 
 		private static void setReadTimeout(ClientHttpRequestFactory factory, Duration readTimeout) {
-			Method method = findMethod(factory, "setReadTimeout", int.class);
+			Method method = tryFindMethod(factory, "setReadTimeout", Duration.class);
+			if (method != null) {
+				invoke(factory, method, readTimeout);
+				return;
+			}
+			method = findMethod(factory, "setReadTimeout", int.class);
 			int timeout = Math.toIntExact(readTimeout.toMillis());
 			invoke(factory, method, timeout);
 		}
@@ -403,6 +421,18 @@ public final class ClientHttpRequestFactories {
 			Assert.state(!method.isAnnotationPresent(Deprecated.class),
 					() -> "Request factory %s has the %s method marked as deprecated"
 						.formatted(requestFactory.getClass().getName(), methodName));
+			return method;
+		}
+
+		private static Method tryFindMethod(ClientHttpRequestFactory requestFactory, String methodName,
+				Class<?>... parameters) {
+			Method method = ReflectionUtils.findMethod(requestFactory.getClass(), methodName, parameters);
+			if (method == null) {
+				return null;
+			}
+			if (method.isAnnotationPresent(Deprecated.class)) {
+				return null;
+			}
 			return method;
 		}
 

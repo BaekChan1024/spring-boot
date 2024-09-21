@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
-import org.springframework.http.client.JettyClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.http.client.MockClientHttpRequest;
@@ -46,6 +45,7 @@ import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.ReflectionUtils;
 import org.springframework.util.ReflectionUtils.MethodCallback;
+import org.springframework.web.client.NoOpResponseErrorHandler;
 import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestOperations;
 import org.springframework.web.client.RestTemplate;
@@ -86,16 +86,15 @@ class TestRestTemplateTests {
 
 	@Test
 	void doNotReplaceCustomRequestFactory() {
-		RestTemplateBuilder builder = new RestTemplateBuilder()
-			.requestFactory(HttpComponentsClientHttpRequestFactory.class);
+		RestTemplateBuilder builder = new RestTemplateBuilder().requestFactory(TestClientHttpRequestFactory.class);
 		TestRestTemplate testRestTemplate = new TestRestTemplate(builder);
 		assertThat(testRestTemplate.getRestTemplate().getRequestFactory())
-			.isInstanceOf(HttpComponentsClientHttpRequestFactory.class);
+			.isInstanceOf(TestClientHttpRequestFactory.class);
 	}
 
 	@Test
 	void useTheSameRequestFactoryClassWithBasicAuth() {
-		JettyClientHttpRequestFactory customFactory = new JettyClientHttpRequestFactory();
+		TestClientHttpRequestFactory customFactory = new TestClientHttpRequestFactory();
 		RestTemplateBuilder builder = new RestTemplateBuilder().requestFactory(() -> customFactory);
 		TestRestTemplate testRestTemplate = new TestRestTemplate(builder).withBasicAuth("test", "test");
 		RestTemplate restTemplate = testRestTemplate.getRestTemplate();
@@ -225,13 +224,12 @@ class TestRestTemplateTests {
 	}
 
 	@Test
-	void withBasicAuthShouldUseNoOpErrorHandler() throws Exception {
+	void withBasicAuthShouldUseNoOpErrorHandler() {
 		TestRestTemplate originalTemplate = new TestRestTemplate("foo", "bar");
 		ResponseErrorHandler errorHandler = mock(ResponseErrorHandler.class);
 		originalTemplate.getRestTemplate().setErrorHandler(errorHandler);
 		TestRestTemplate basicAuthTemplate = originalTemplate.withBasicAuth("user", "password");
-		assertThat(basicAuthTemplate.getRestTemplate().getErrorHandler()).isInstanceOf(
-				Class.forName("org.springframework.boot.test.web.client.TestRestTemplate$NoOpResponseErrorHandler"));
+		assertThat(basicAuthTemplate.getRestTemplate().getErrorHandler()).isInstanceOf(NoOpResponseErrorHandler.class);
 	}
 
 	@Test
@@ -384,6 +382,10 @@ class TestRestTemplateTests {
 	interface TestRestTemplateCallback {
 
 		void doWithTestRestTemplate(TestRestTemplate testRestTemplate, URI relativeUri);
+
+	}
+
+	static class TestClientHttpRequestFactory extends SimpleClientHttpRequestFactory {
 
 	}
 
