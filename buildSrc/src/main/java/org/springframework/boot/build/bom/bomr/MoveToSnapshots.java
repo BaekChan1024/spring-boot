@@ -17,7 +17,6 @@
 package org.springframework.boot.build.bom.bomr;
 
 import java.time.OffsetDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiPredicate;
@@ -25,6 +24,7 @@ import java.util.function.BiPredicate;
 import javax.inject.Inject;
 
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.tasks.TaskAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,9 +35,6 @@ import org.springframework.boot.build.bom.bomr.ReleaseSchedule.Release;
 import org.springframework.boot.build.bom.bomr.github.Milestone;
 import org.springframework.boot.build.bom.bomr.version.DependencyVersion;
 import org.springframework.boot.build.properties.BuildProperties;
-import org.springframework.boot.build.properties.BuildType;
-import org.springframework.boot.build.repository.SpringRepository;
-import org.springframework.boot.build.repository.SpringRepository.RepositoryType;
 
 /**
  * A {@link Task} to move to snapshot dependencies.
@@ -46,22 +43,17 @@ import org.springframework.boot.build.repository.SpringRepository.RepositoryType
  */
 public abstract class MoveToSnapshots extends UpgradeDependencies {
 
-	private static final Logger log = LoggerFactory.getLogger(MoveToSnapshots.class);
+	private static final Logger logger = LoggerFactory.getLogger(MoveToSnapshots.class);
 
 	@Inject
 	public MoveToSnapshots(BomExtension bom) {
 		super(bom, true);
-		BuildType buildType = BuildProperties.get(this).buildType();
-		getRepositoryNames().addAll(getSnapshotRepositoryNames(buildType));
-	}
-
-	public static List<String> getSnapshotRepositoryNames(BuildType buildType) {
-		return Arrays.stream(SpringRepository.values())
-			.filter((repository) -> repository.getRepositoryType() == RepositoryType.SNAPSHOT)
-			.filter((repository) -> repository.getBuildType() == BuildType.OPEN_SOURCE
-					|| repository.getBuildType() == buildType)
-			.map(SpringRepository::getName)
-			.toList();
+		getProject().getRepositories().withType(MavenArtifactRepository.class, (repository) -> {
+			String name = repository.getName();
+			if (name.startsWith("spring-") && name.endsWith("-snapshot")) {
+				getRepositoryNames().add(name);
+			}
+		});
 	}
 
 	@Override
@@ -95,7 +87,7 @@ public abstract class MoveToSnapshots extends UpgradeDependencies {
 
 	@Override
 	protected List<BiPredicate<Library, DependencyVersion>> determineUpdatePredicates(Milestone milestone) {
-		return switch (BuildProperties.get(this).buildType()) {
+		return switch (BuildProperties.get(getProject()).buildType()) {
 			case OPEN_SOURCE -> determineOpenSourceUpdatePredicates(milestone);
 			case COMMERCIAL -> super.determineUpdatePredicates(milestone);
 		};
@@ -108,8 +100,8 @@ public abstract class MoveToSnapshots extends UpgradeDependencies {
 			List<Release> releases = scheduledReleases.get(library.getCalendarName());
 			boolean match = (releases != null)
 					&& releases.stream().anyMatch((release) -> candidate.isSnapshotFor(release.getVersion()));
-			if (log.isInfoEnabled() && !match) {
-				log.info("Ignoring {}. No release of {} scheduled before {}", candidate, library.getName(),
+			if (logger.isInfoEnabled() && !match) {
+				logger.info("Ignoring {}. No release of {} scheduled before {}", candidate, library.getName(),
 						milestone.getDueOn());
 			}
 			return match;

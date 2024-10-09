@@ -1,6 +1,5 @@
 plugins {
 	id "org.springframework.boot.bom"
-	id "org.springframework.boot.conventions"
 	id "org.springframework.boot.deployed"
 }
 
@@ -1264,7 +1263,7 @@ bom {
 			]
 		}
 	}
-	library("Maven Javadoc Plugin", "3.10.0") {
+	library("Maven Javadoc Plugin", "3.10.1") {
 		group("org.apache.maven.plugins") {
 			plugins = [
 				"maven-javadoc-plugin"
@@ -1341,7 +1340,7 @@ bom {
 			releaseNotes("https://github.com/micrometer-metrics/tracing/releases/tag/v{version}")
 		}
 	}
-	library("Mockito", "5.13.0") {
+	library("Mockito", "${mockitoVersion}") {
 		group("org.mockito") {
 			imports = [
 				"mockito-bom"
@@ -1490,7 +1489,6 @@ bom {
 		group("com.oracle.database.security") {
 			modules = [
 				"oraclepki"
-
 			]
 		}
 		group("com.oracle.database.xml") {

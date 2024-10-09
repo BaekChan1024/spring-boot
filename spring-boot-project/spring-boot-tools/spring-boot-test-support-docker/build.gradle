@@ -1,6 +1,5 @@
 plugins {
 	id "java-library"
-	id "org.springframework.boot.conventions"
 	id "org.springframework.boot.optional-dependencies"
 }
 
@@ -16,7 +15,6 @@ dependencies {
 	compileOnly("org.springframework:spring-core")
 
 	optional("org.testcontainers:activemq")
-	optional("org.testcontainers:cassandra")
 	optional("org.testcontainers:cassandra")
 	optional("org.testcontainers:couchbase")
 	optional("org.testcontainers:elasticsearch")

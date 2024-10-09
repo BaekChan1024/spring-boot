@@ -9,9 +9,14 @@ defaultTasks 'build'
 
 allprojects {
 	group "org.springframework.boot"
+}
+
+subprojects {
+	apply plugin: "org.springframework.boot.conventions"
 
 	repositories {
 		mavenCentral()
+		spring.mavenRepositories()
 		if (version.contains('-')) {
 			maven { url "https://repo.spring.io/milestone" }
 		}
@@ -24,3 +29,4 @@ allprojects {
 		resolutionStrategy.cacheChangingModulesFor 0, "minutes"
 	}
 }
+
